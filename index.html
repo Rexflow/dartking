@@ -19,7 +19,7 @@
   .screen.active { display:block; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
   .board-wrap { background:linear-gradient(135deg,#1A1A2E,#0D0D1A); border:2px solid var(--border); border-radius:20px; padding:12px; margin:16px auto; max-width:360px; box-shadow:inset 0 0 40px rgba(0,0,0,0.6), 0 0 30px rgba(255,51,51,0.1); position:relative; }
-  canvas { display:block; width:100%; border-radius:14px; touch-action:none; }
+  canvas { display:block; width:100%; border-radius:14px; touch-action:none; cursor:crosshair; }
   .round-info { text-align:center; font-size:14px; color:var(--dim); margin:6px 0; }
   .score-pop { position:absolute; font-size:22px; font-weight:800; color:var(--gold); pointer-events:none; z-index:50; animation:scorePop .8s ease forwards; text-shadow:0 0 10px rgba(255,215,0,.5); }
   @keyframes scorePop { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-40px) scale(1.5)} }
@@ -56,7 +56,6 @@
   .toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#1E1E35; border:1px solid var(--gold); padding:12px 24px; border-radius:14px; font-weight:600; z-index:1000; animation:toastIn .3s ease,toastOut .3s ease 2s forwards; box-shadow:0 8px 30px rgba(0,0,0,0.5); }
   @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(-20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
   @keyframes toastOut { to{opacity:0;transform:translateX(-50%) translateY(-20px)} }
-  .aim-line { position:absolute; top:50%; left:50%; width:2px; height:0; background:rgba(255,255,255,0.3); transform-origin:top center; pointer-events:none; z-index:5; transition:height 0.1s, opacity 0.1s; }
 </style>
 </head>
 <body>
@@ -78,11 +77,11 @@
     <div class="board-wrap" id="boardWrap">
       <canvas id="dartCanvas" width="340" height="340"></canvas>
     </div>
-    <div class="round-info" id="roundInfo">Round 1 — Pull sling, aim, release!</div>
+    <div class="round-info" id="roundInfo">Aim at the board • Tap to throw</div>
     <div class="combo" id="gameCombo"></div>
     <button class="btn btn-red" onclick="startRound()" id="throwBtn">🎯 Throw Dart</button>
     <div class="info-box" style="margin-top:12px">
-      <strong>How to play:</strong> Pull back sling → aim at center → release. Slower pull = more accuracy!
+      <strong>How to play:</strong> Move finger to aim at the center • Tap to throw. Steady aim = bullseye!
     </div>
     <div class="ad-banner">
       📺 Watch ad → +50 coins
@@ -166,16 +165,15 @@ const W = 340, H = 340;
 canvas.width = W; canvas.height = H;
 
 let boardSize = W;
-let darts = [];
+let landedDarts = [];
 let roundThrows = 0;
 const MAX_THROWS = 10;
 let gameActive = false;
 let dailyMode = false;
+let isThrowing = false; // LOCK: prevents double throws
 
-// Slingshot state
-let sling = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, releaseX: 0, releaseY: 0 };
-let flightAnim = null; // current flying dart animation
-let landedDarts = []; // darts that have landed
+// Aim state — crosshair follows finger
+let aim = { x: W/2, y: H/2, active: false };
 
 // Board zones
 function getScore(x, y) {
@@ -198,46 +196,91 @@ function getZoneLabel(s) {
   return {50:'BULLSEYE!',30:'Inner',20:'Mid-inner',15:'Middle',10:'Mid-outer',5:'Outer',2:'Edge',0:'Miss'}[s]||'Miss';
 }
 
-// Draw dart board
+// Draw dart board — realistic
 function drawBoard() {
   ctx.clearRect(0, 0, W, H);
   const cx = W/2, cy = H/2;
   const r = boardSize / 2 - 15;
 
-  // Outer ring
+  // Outer wall
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#2A2A3E';
+  ctx.fill();
+
+  // Wire segments (traditional dart board wiring)
+  ctx.strokeStyle = '#AAA';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 20; i++) {
+    const a = (i * 18 + 9) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    ctx.stroke();
+  }
+
+  // Outer ring (double)
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1A1A2E';
+  ctx.fillStyle = '#1A1A28';
   ctx.fill();
   ctx.strokeStyle = '#FF3333';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Middle ring
+  // Outer number ring
+  ctx.fillStyle = '#FF8800';
+  ctx.font = `bold ${r*0.08}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 20; i++) {
+    const a = (i * 18 - 9) * Math.PI / 180;
+    ctx.fillText((i+1).toString(), cx + Math.cos(a) * r * 0.88, cy + Math.sin(a) * r * 0.88);
+  }
+
+  // Middle ring (single)
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.65, 0, Math.PI * 2);
-  ctx.fillStyle = '#111122';
+  ctx.fillStyle = '#111120';
   ctx.fill();
   ctx.strokeStyle = '#FF8800';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Inner ring
+  // Inner ring (triple)
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
-  ctx.fillStyle = '#1A1A2E';
+  ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2);
+  ctx.fillStyle = '#1A1A28';
   ctx.fill();
   ctx.strokeStyle = '#FFD700';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Inner circle (single)
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
+  ctx.fillStyle = '#111120';
+  ctx.fill();
+  ctx.strokeStyle = '#FFD700';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Bullseye (outer)
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = '#1A1A28';
+  ctx.fill();
+  ctx.strokeStyle = '#FF0000';
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Bullseye
+  // Bullseye (inner)
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.1, 0, Math.PI * 2);
   ctx.fillStyle = '#FF0000';
   ctx.fill();
   ctx.strokeStyle = '#FFF';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   // Bullseye text
@@ -245,203 +288,180 @@ function drawBoard() {
   ctx.font = `bold ${r*0.1}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('50', cx, cy);
-
-  // Zone labels
-  ctx.fillStyle = '#FFD700';
-  ctx.font = `${r*0.06}px sans-serif`;
-  ctx.fillText('30', cx + r*0.15, cy);
-  ctx.fillText('15', cx + r*0.3, cy);
-  ctx.fillText('8', cx + r*0.5, cy);
+  ctx.fillText('50', cx, cy - r*0.05);
+  ctx.fillText('25', cx, cy + r*0.05);
 
   // Draw landed darts
   landedDarts.forEach(d => {
-    const dx = cx + (d.x - W/2) * 0.95;
-    const dy = cy + (d.y - H/2) * 0.95;
-    // Pin
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, 5, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFD700';
-    ctx.fill();
-    ctx.strokeStyle = '#B8960F';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Point
-    ctx.beginPath();
-    ctx.moveTo(d.x, d.y);
-    ctx.lineTo(d.x + (d.x - cx)*0.3, d.y + (d.y - cy)*0.3);
-    ctx.strokeStyle = '#AAA';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    drawDartOnBoard(d.x, d.y, d.score);
   });
 
-  // Draw sling when pulling
-  if (sling.active) {
-    // Band from center to finger
-    ctx.beginPath();
-    ctx.moveTo(cx - 15, cy);
-    ctx.lineTo(sling.currentX, sling.currentY);
-    ctx.lineTo(cx + 15, cy);
-    ctx.strokeStyle = 'rgba(255,100,100,0.6)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Finger pouch
-    ctx.beginPath();
-    ctx.arc(sling.currentX, sling.currentY, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#8B4513';
-    ctx.fill();
-    ctx.strokeStyle = '#5C2E0A';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Trajectory line (dotted)
-    const dx = cx - sling.currentX;
-    const dy = cy - sling.currentY;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist > 20) {
-      const angle = Math.atan2(dy, dx);
-      const power = Math.min(dist / 80, 1);
-      const targetX = cx + Math.cos(angle) * power * r * 0.7;
-      const targetY = cy + Math.sin(angle) * power * r * 0.7;
-
-      ctx.beginPath();
-      ctx.setLineDash([5, 5]);
-      ctx.moveTo(sling.currentX, sling.currentY);
-      ctx.lineTo(targetX, targetY);
-      ctx.strokeStyle = `rgba(255,255,255,${0.3 + power * 0.4})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Target dot
-      ctx.beginPath();
-      ctx.arc(targetX, targetY, 6 + (1-power)*4, 0, Math.PI * 2);
-      ctx.fillStyle = power < 0.3 ? '#00FF88' : power < 0.6 ? '#FFD700' : '#FF3333';
-      ctx.fill();
-    }
+  // Draw aim crosshair
+  if (aim.active && !isThrowing) {
+    drawAimCrosshair();
   }
 
-  // Draw flying dart
-  if (flightAnim && flightAnim.active) {
+  // Draw throwing dart in flight
+  if (isThrowing && flightAnim) {
     const a = flightAnim;
     ctx.beginPath();
-    ctx.arc(a.x, a.y, 6, 0, Math.PI * 2);
+    ctx.arc(a.x, a.y, 5, 0, Math.PI * 2);
     ctx.fillStyle = '#FFD700';
     ctx.fill();
     ctx.strokeStyle = '#B8960F';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+    // Dart point
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(a.x + a.vx * 3, a.y + a.vy * 3);
+    ctx.strokeStyle = '#AAA';
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 }
 
-// === REALISTIC THROW MECHANIC ===
+function drawDartOnBoard(x, y, score) {
+  const cx = W/2, cy = H/2;
+  const r = boardSize / 2 - 15;
+  
+  // Pin head
+  ctx.beginPath();
+  ctx.arc(x, y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFD700';
+  ctx.fill();
+  ctx.strokeStyle = '#B8960F';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Dart shaft
+  const angle = Math.atan2(y - cy, x - cx);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + Math.cos(angle) * 15, y + Math.sin(angle) * 15);
+  ctx.strokeStyle = '#AAA';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  
+  // Score label
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('+' + score, x, y - 10);
+}
+
+function drawAimCrosshair() {
+  const x = aim.x, y = aim.y;
+  
+  // Outer ring (shows accuracy)
+  const accuracyRadius = 15 + (1 - getAccuracy()) * 25;
+  ctx.beginPath();
+  ctx.arc(x, y, accuracyRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255,255,255,${0.2 + getAccuracy() * 0.3})`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Crosshair lines
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y);
+  ctx.lineTo(x - 4, y);
+  ctx.moveTo(x + 4, y);
+  ctx.lineTo(x + 12, y);
+  ctx.moveTo(x, y - 12);
+  ctx.lineTo(x, y - 4);
+  ctx.moveTo(x, y + 4);
+  ctx.lineTo(x, y + 12);
+  ctx.strokeStyle = `rgba(255,255,255,${0.4 + getAccuracy() * 0.4})`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(x, y, 2, 0, Math.PI * 2);
+  ctx.fillStyle = getAccuracy() > 0.7 ? '#00FF88' : getAccuracy() > 0.4 ? '#FFD700' : '#FF3333';
+  ctx.fill();
+  
+  // Accuracy percentage
+  ctx.fillStyle = '#FFF';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.round(getAccuracy() * 100) + '%', x, y - accuracyRadius - 6);
+}
+
+function getAccuracy() {
+  // Accuracy based on how close aim is to board center
+  const dx = aim.x - W/2;
+  const dy = aim.y - H/2;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const maxDist = boardSize / 2;
+  return Math.max(0, 1 - dist / maxDist);
+}
+
+// === THROW MECHANIC ===
 function startRound() {
   if (gameActive) return;
   gameActive = true;
   roundThrows = 0;
   landedDarts = [];
-  darts = [];
-  sling.active = false;
+  isThrowing = false;
   flightAnim = null;
+  aim = { x: W/2, y: H/2, active: true };
 
-  document.getElementById('throwBtn').textContent = '🎯 Aim & Release';
+  document.getElementById('throwBtn').textContent = '🎯 Aim & Tap';
   document.getElementById('throwBtn').disabled = false;
   document.getElementById('gameCombo').textContent = '';
-
   drawBoard();
   updateRoundInfo();
 }
 
-function onPointerDown(e) {
-  if (!gameActive || roundThrows >= MAX_THROWS) return;
-  const pos = getCanvasPos(e);
-  sling.active = true;
-  sling.startX = pos.x;
-  sling.startY = pos.y;
-  sling.currentX = pos.x;
-  sling.currentY = pos.y;
-  sling.releaseX = pos.x;
-  sling.releaseY = pos.y;
-  drawBoard();
-}
+function throwDart(aimX, aimY) {
+  if (isThrowing || !gameActive || roundThrows >= MAX_THROWS) return;
+  isThrowing = true;
+  aim.active = false;
 
-function onPointerMove(e) {
-  if (!sling.active) return;
-  const pos = getCanvasPos(e);
-  sling.currentX = pos.x;
-  sling.currentY = pos.y;
-  drawBoard();
-}
+  // Calculate actual landing position based on aim + small deviation
+  const accuracy = getAccuracy();
+  const deviation = (1 - accuracy) * 25; // Max 25px deviation at edges
+  const landX = aimX + (Math.random() - 0.5) * deviation;
+  const landY = aimY + (Math.random() - 0.5) * deviation;
 
-function onPointerUp(e) {
-  if (!sling.active) return;
-  sling.active = false;
-
-  const dx = W/2 - sling.currentX;
-  const dy = W/2 - sling.currentY; // intentional: use dy from center
-  const dist = Math.sqrt(dx*dx + dy*dy);
-
-  // Release point = where finger was
-  const releaseX = sling.currentX;
-  const releaseY = sling.currentY;
-
-  // Aim direction = from finger toward center
-  const aimAngle = Math.atan2(W/2 - sling.currentY, W/2 - sling.currentX);
-
-  // Power = how far you pulled (0.1 to 1.0)
-  const power = Math.min(dist / 80, 1.0);
-  power = Math.max(power, 0.15);
-
-  // Accuracy: slower pull = tighter grouping
-  // Wobble angle based on power (faster = more wobble)
-  const wobbleAngle = (Math.random() - 0.5) * (0.15 - power * 0.12);
-  const wobbleDist = (Math.random() - 0.5) * (15 - power * 12);
-
-  // Target position on board
-  const targetR = power * (boardSize/2 - 30);
-  const targetX = W/2 + Math.cos(aimAngle + wobbleAngle) * targetR + wobbleDist * Math.cos(aimAngle + Math.PI/2);
-  const targetY = W/2 + Math.sin(aimAngle + wobbleAngle) * targetR + wobbleDist * Math.sin(aimAngle + Math.PI/2);
-
-  // Animate dart flight
-  animateFlight(releaseX, releaseY, targetX, targetY, power);
-}
-
-function animateFlight(fromX, fromY, toX, toY, power) {
-  const duration = 400 + (1 - power) * 200; // faster throw = shorter flight
+  // Flight animation — dart flies from bottom center to target
+  const startX = W/2;
+  const startY = H + 20; // Dart comes from below
+  const duration = 500;
   const startTime = Date.now();
-  const cx = W/2, cy = H/2;
 
-  // Arc height based on power
-  const arcHeight = 20 + power * 30;
+  flightAnim = { x: startX, y: startY, vx: 0, vy: 0, active: true };
 
-  function step() {
+  function animateFlight() {
     const elapsed = Date.now() - startTime;
     const t = Math.min(elapsed / duration, 1);
-    // Ease out cubic
+    // Ease out with arc
     const ease = 1 - Math.pow(1 - t, 3);
+    const arc = Math.sin(t * Math.PI) * 30; // Arc height
 
-    // Parabolic arc
-    const x = fromX + (toX - fromX) * ease;
-    const y = fromY + (toY - fromY) * ease - Math.sin(t * Math.PI) * arcHeight;
+    flightAnim.x = startX + (landX - startX) * ease;
+    flightAnim.y = startY + (landY - startY) * ease - arc;
+    flightAnim.vx = (landX - startX) / duration;
+    flightAnim.vy = (landY - startY) / duration;
 
-    flightAnim = { x, y, active: true };
     drawBoard();
 
     if (t < 1) {
-      requestAnimationFrame(step);
+      requestAnimationFrame(animateFlight);
     } else {
       // Dart landed
+      isThrowing = false;
       flightAnim = null;
-      const score = getScore(toX, toY);
-      landedDarts.push({x: toX, y: toY, score});
-      darts.push({x: toX, y: toY, score});
+      
+      const score = getScore(landX, landY);
+      landedDarts.push({x: landX, y: landY, score});
       roundThrows++;
 
       if (score === 50) state.bullseyeCount++;
 
       // Score popup
-      showScorePopup(toX, toY, score);
+      showScorePopup(landX, landY, score);
 
       if (score === 50) {
         document.getElementById('gameCombo').textContent = '🔥 BULLSEYE!';
@@ -452,13 +472,17 @@ function animateFlight(fromX, fromY, toX, toY, power) {
       drawBoard();
 
       if (roundThrows >= MAX_THROWS) {
-        setTimeout(endRound, 600);
+        setTimeout(endRound, 500);
       } else {
-        gameActive = true; // ready for next throw
+        // Ready for next throw — aim returns to center
+        aim = { x: W/2, y: H/2, active: true };
+        gameActive = true;
+        drawBoard();
       }
     }
   }
-  requestAnimationFrame(step);
+
+  requestAnimationFrame(animateFlight);
 }
 
 function showScorePopup(x, y, score) {
@@ -479,7 +503,7 @@ function updateRoundInfo() {
 
 function endRound() {
   gameActive = false;
-  const roundScore = darts.reduce((sum, d) => sum + d.score, 0);
+  const roundScore = landedDarts.reduce((sum, d) => sum + d.score, 0);
   state.roundsPlayed++;
   if (roundScore > state.bestScore) state.bestScore = roundScore;
   state.coins += roundScore;
@@ -500,7 +524,7 @@ function endRound() {
     <h2>Round Complete</h2>
     <div class="result-coins">+${roundScore} 🪙</div>
     <div class="result-detail">
-      Bullseyes: ${darts.filter(d=>d.score===50).length}<br>
+      Bullseyes: ${landedDarts.filter(d=>d.score===50).length}<br>
       Total coins: ${state.coins}
     </div>
     <button class="btn btn-gold" onclick="this.parentElement.remove();startRound()" style="margin-top:12px;width:auto;display:inline-block;padding:10px 24px">Next Round</button>
@@ -602,12 +626,45 @@ function getCanvasPos(e) {
   return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
 }
 
-canvas.addEventListener('mousedown', e => onPointerDown(e));
-canvas.addEventListener('mousemove', e => { if (sling.active) onPointerMove(e); });
-canvas.addEventListener('mouseup', e => onPointerUp(e));
-canvas.addEventListener('touchstart', e => { e.preventDefault(); onPointerDown(e); }, {passive:false});
-canvas.addEventListener('touchmove', e => { e.preventDefault(); if (sling.active) onPointerMove(e); }, {passive:false});
-canvas.addEventListener('touchend', e => { e.preventDefault(); onPointerUp(e); }, {passive:false});
+// Aim: crosshair follows finger
+canvas.addEventListener('mousemove', e => {
+  const pos = getCanvasPos(e);
+  aim.x = pos.x;
+  aim.y = pos.y;
+  if (gameActive && !isThrowing) drawBoard();
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const pos = getCanvasPos(e);
+  aim.x = pos.x;
+  aim.y = pos.y;
+  if (gameActive && !isThrowing) drawBoard();
+}, {passive:false});
+
+// Throw: tap/click to throw
+canvas.addEventListener('mousedown', e => {
+  if (gameActive && !isThrowing && aim.active) {
+    const pos = getCanvasPos(e);
+    throwDart(pos.x, pos.y);
+  }
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameActive && !isThrowing && aim.active) {
+    const pos = getCanvasPos(e);
+    throwDart(pos.x, pos.y);
+  }
+}, {passive:false});
+
+// Also throw when tapping the board (for quick play)
+canvas.addEventListener('click', e => {
+  if (gameActive && !isThrowing && aim.active) {
+    const pos = getCanvasPos(e);
+    throwDart(pos.x, pos.y);
+  }
+});
 
 // === TELEGRAM ===
 function initTelegram() {
