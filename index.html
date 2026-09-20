@@ -202,15 +202,40 @@ function drawBoard() {
   const cx = W/2, cy = H/2;
   const r = boardSize / 2 - 15;
 
-  // Outer wall
+  // Wall shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetX = 5;
+  ctx.shadowOffsetY = 5;
   ctx.beginPath();
-  ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
-  ctx.fillStyle = '#2A2A3E';
+  ctx.arc(cx, cy, r + 10, 0, Math.PI * 2);
+  ctx.fillStyle = '#111';
+  ctx.fill();
+  ctx.restore();
+
+  // Wooden backing
+  const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r + 10);
+  bgGrad.addColorStop(0, '#3A2510');
+  bgGrad.addColorStop(0.7, '#2A1A08');
+  bgGrad.addColorStop(1, '#1A0F05');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 10, 0, Math.PI * 2);
+  ctx.fillStyle = bgGrad;
   ctx.fill();
 
-  // Wire segments (traditional dart board wiring)
-  ctx.strokeStyle = '#AAA';
+  // Metal rim
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#555';
+  ctx.fill();
+  ctx.strokeStyle = '#888';
   ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Wire segments - traditional spider
+  ctx.strokeStyle = '#B8860B';
+  ctx.lineWidth = 1.5;
   for (let i = 0; i < 20; i++) {
     const a = (i * 18 + 9) * Math.PI / 180;
     ctx.beginPath();
@@ -219,77 +244,114 @@ function drawBoard() {
     ctx.stroke();
   }
 
+  // Horizontal wires
+  const wireAngles = [0, 54, 108, 162, 216, 270, 324]; // positions for wire crosses
+  for (const baseAngle of wireAngles) {
+    for (let layer = 0; layer < 3; layer++) {
+      const layerR = [r * 0.65, r * 0.45, r * 0.2][layer];
+      const a1 = (baseAngle) * Math.PI / 180;
+      const a2 = (baseAngle + 18) * Math.PI / 180;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a1) * layerR, cy + Math.sin(a1) * layerR);
+      ctx.lineTo(cx + Math.cos(a2) * layerR, cy + Math.sin(a2) * layerR);
+      ctx.strokeStyle = '#B8860B';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
   // Outer ring (double)
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1A1A28';
+  ctx.fillStyle = '#0A0A14';
   ctx.fill();
-  ctx.strokeStyle = '#FF3333';
+  ctx.strokeStyle = '#B8860B';
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Outer number ring
-  ctx.fillStyle = '#FF8800';
-  ctx.font = `bold ${r*0.08}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  // Single segments (outer ring areas)
+  const segmentColors = ['#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600','#CC0000','#006600'];
   for (let i = 0; i < 20; i++) {
-    const a = (i * 18 - 9) * Math.PI / 180;
-    ctx.fillText((i+1).toString(), cx + Math.cos(a) * r * 0.88, cy + Math.sin(a) * r * 0.88);
+    const startAngle = (i * 18 - 9) * Math.PI / 180;
+    const endAngle = ((i + 1) * 18 - 9) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r * 0.65, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = segmentColors[i];
+    ctx.fill();
   }
 
-  // Middle ring (single)
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.65, 0, Math.PI * 2);
-  ctx.fillStyle = '#111120';
-  ctx.fill();
-  ctx.strokeStyle = '#FF8800';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Inner ring (triple)
+  // Triple ring area
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2);
-  ctx.fillStyle = '#1A1A28';
+  ctx.fillStyle = '#0A0A14';
   ctx.fill();
-  ctx.strokeStyle = '#FFD700';
+  ctx.strokeStyle = '#B8860B';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Inner circle (single)
+  // Triple segments
+  for (let i = 0; i < 20; i++) {
+    const startAngle = (i * 18 - 9) * Math.PI / 180;
+    const endAngle = ((i + 1) * 18 - 9) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r * 0.45, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = segmentColors[i];
+    ctx.fill();
+  }
+
+  // Inner circle (single 25)
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
-  ctx.fillStyle = '#111120';
+  ctx.fillStyle = '#0A0A14';
   ctx.fill();
-  ctx.strokeStyle = '#FFD700';
+  ctx.strokeStyle = '#B8860B';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Bullseye (outer)
+  // Outer bull (25)
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.2, 0, Math.PI * 2);
-  ctx.fillStyle = '#1A1A28';
+  ctx.fillStyle = '#0A0A14';
   ctx.fill();
-  ctx.strokeStyle = '#FF0000';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Bullseye (inner)
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.1, 0, Math.PI * 2);
-  ctx.fillStyle = '#FF0000';
-  ctx.fill();
-  ctx.strokeStyle = '#FFF';
+  ctx.strokeStyle = '#B8860B';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Bullseye text
-  ctx.fillStyle = '#FFF';
-  ctx.font = `bold ${r*0.1}px sans-serif`;
+  // Inner bull (bullseye)
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.strokeStyle = '#B8860B';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Bullseye center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.04, 0, Math.PI * 2);
+  ctx.fillStyle = '#FF0000';
+  ctx.fill();
+
+  // Numbers on the board
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `bold ${r*0.07}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('50', cx, cy - r*0.05);
-  ctx.fillText('25', cx, cy + r*0.05);
+  const numPos = [
+    [6,20],[12,19],[18,17],[24,15],[30,13],[36,11],[42,9],[48,7],
+    [54,5],[60,3],[60,-3],[54,-5],[48,-7],[42,-9],[36,-11],[30,-13],
+    [24,-15],[18,-17],[12,-19],[6,-20]
+  ];
+  for (let i = 0; i < 20; i++) {
+    const px = cx + numPos[i][0];
+    const py = cy + numPos[i][1];
+    ctx.fillStyle = '#FFF';
+    ctx.fillText((i+1).toString(), px, py);
+  }
 
   // Draw landed darts
   landedDarts.forEach(d => {
@@ -305,23 +367,14 @@ function drawBoard() {
   if (isThrowing && flightAnim) {
     const a = flightAnim;
     ctx.beginPath();
-    ctx.arc(a.x, a.y, 5, 0, Math.PI * 2);
+    ctx.arc(a.x, a.y, 4, 0, Math.PI * 2);
     ctx.fillStyle = '#FFD700';
     ctx.fill();
     ctx.strokeStyle = '#B8960F';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Dart point
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(a.x + a.vx * 3, a.y + a.vy * 3);
-    ctx.strokeStyle = '#AAA';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1;
     ctx.stroke();
   }
-}
-
-function drawDartOnBoard(x, y, score) {
+}function drawDartOnBoard(x, y, score) {
   const cx = W/2, cy = H/2;
   const r = boardSize / 2 - 15;
   
