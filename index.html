@@ -18,8 +18,8 @@
   .screen { display:none; animation:fadeIn .3s ease; }
   .screen.active { display:block; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-  .board-wrap { background:linear-gradient(135deg,#1A1A2E,#0D0D1A); border:2px solid var(--border); border-radius:20px; margin:16px auto; max-width:360px; box-shadow:inset 0 0 40px rgba(0,0,0,0.6), 0 0 30px rgba(255,51,51,0.1); position:relative; display:flex; justify-content:center; align-items:center; }
-  canvas { display:block; width:100%; border-radius:14px; touch-action:none; cursor:crosshair; }
+  .board-wrap { background:#000 url("dartboard-bg.jpg") center/contain no-repeat; border:2px solid #555; border-radius:20px; margin:16px auto; max-width:360px; box-shadow:inset 0 0 40px rgba(0,0,0,0.8), 0 0 30px rgba(255,51,51,0.15); position:relative; display:flex; justify-content:center; align-items:center; min-height:360px; }
+  canvas { display:block; width:100%; border-radius:14px; touch-action:none; cursor:crosshair; background:transparent; }
   .round-info { text-align:center; font-size:14px; color:var(--dim); margin:6px 0; }
   .score-pop { position:absolute; font-size:22px; font-weight:800; color:var(--gold); pointer-events:none; z-index:50; animation:scorePop .8s ease forwards; text-shadow:0 0 10px rgba(255,215,0,.5); }
   @keyframes scorePop { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-40px) scale(1.5)} }
@@ -199,6 +199,8 @@ function getZoneLabel(s) {
 // Draw dart board — realistic
 function drawBoard() {
   ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,0.01)';
+  ctx.fillRect(0, 0, W, H);
   const cx = W/2, cy = H/2;
   const r = boardSize / 2 - 15;
 
