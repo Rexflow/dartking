@@ -368,7 +368,8 @@ function getAccuracy() {
 
 // === THROW ===
 function throwDart() {
-  if (isThrowing || !gameActive || roundThrows >= MAX_THROWS) return;
+  if (!gameActive) { startRound(); return; }
+  if (isThrowing || roundThrows >= MAX_THROWS) return;
   isThrowing = true;
   aim.active = false;
 
@@ -457,7 +458,7 @@ function updateRoundInfo() {
 
 // === ROUND ===
 function startRound() {
-  if (gameActive) return;
+  if (gameActive && roundThrows < MAX_THROWS) return;
   gameActive = true;
   roundThrows = 0;
   landedDarts = [];
@@ -465,6 +466,10 @@ function startRound() {
   flightAnim = null;
   luckyActive = false;
   aim = { x: W/2, y: H/2, active: true };
+  document.getElementById('throwBtn').textContent = '🎯 Throw';
+  document.getElementById('throwBtn').disabled = false;
+  document.getElementById('gameCombo').textContent = '';
+  document.getElementById('luckyBanner').style.display = 'none';
 
   document.getElementById('throwBtn').textContent = '🎯 Throw';
   document.getElementById('throwBtn').disabled = false;
