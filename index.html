@@ -361,6 +361,8 @@ function onPointerDown(e) {
   sling.startY = pos.y;
   sling.currentX = pos.x;
   sling.currentY = pos.y;
+  sling.releaseX = pos.x;
+  sling.releaseY = pos.y;
   drawBoard();
 }
 
@@ -393,8 +395,8 @@ function onPointerUp(e) {
 
   // Accuracy: slower pull = tighter grouping
   // Wobble angle based on power (faster = more wobble)
-  const wobbleAngle = (Math.random() - 0.5) * (0.3 - power * 0.25);
-  const wobbleDist = (Math.random() - 0.5) * (40 - power * 35);
+  const wobbleAngle = (Math.random() - 0.5) * (0.15 - power * 0.12);
+  const wobbleDist = (Math.random() - 0.5) * (15 - power * 12);
 
   // Target position on board
   const targetR = power * (boardSize/2 - 30);
@@ -600,12 +602,12 @@ function getCanvasPos(e) {
   return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
 }
 
-canvas.addEventListener('mousedown', e => { onPointerDown(getCanvasPos(e)); });
-canvas.addEventListener('mousemove', e => { if (sling.active) onPointerMove(getCanvasPos(e)); });
-canvas.addEventListener('mouseup', () => onPointerUp());
-canvas.addEventListener('touchstart', e => { e.preventDefault(); onPointerDown(e.touches[0]); }, {passive:false});
-canvas.addEventListener('touchmove', e => { e.preventDefault(); if (sling.active) onPointerMove(e.touches[0]); }, {passive:false});
-canvas.addEventListener('touchend', e => { e.preventDefault(); onPointerUp(); }, {passive:false});
+canvas.addEventListener('mousedown', e => onPointerDown(e));
+canvas.addEventListener('mousemove', e => { if (sling.active) onPointerMove(e); });
+canvas.addEventListener('mouseup', e => onPointerUp(e));
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onPointerDown(e); }, {passive:false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if (sling.active) onPointerMove(e); }, {passive:false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); onPointerUp(e); }, {passive:false});
 
 // === TELEGRAM ===
 function initTelegram() {
